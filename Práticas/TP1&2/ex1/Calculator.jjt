@@ -1,5 +1,5 @@
 options {
-    LOOKAHEAD = 1;
+    LOOKAHEAD = 2;
 }
 
 PARSER_BEGIN(Calculator)
@@ -7,14 +7,16 @@ PARSER_BEGIN(Calculator)
 
 // Java code invoking the parser
 public class Calculator {
+
     public static void main(String[] args) throws ParseException {
         System.out.println("Parser for a calculator that accepts expressions with integers, +,-,*,/,(, and ).");
         System.out.println("Write an arithmetic expression:");
         Calculator myCalc = new Calculator(System.in);
+
         SimpleNode root = myCalc.Expression(); // returns reference to root node
 
         root.dump(""); // prints the tree on the screen
-        System.out.println("Expression value: "+myCalc.eval(root));
+        System.out.println("Expression value: " + myCalc.eval(root));
     }
 
     int eval(SimpleNode node) {
@@ -31,7 +33,8 @@ public class Calculator {
             case CalculatorTreeConstants.JJTMUL: return eval( lhs ) * eval( rhs );
             case CalculatorTreeConstants.JJTDIV: return eval( lhs ) / eval( rhs );
             default : // abort
-                System.out.println("Illegal operator!");
+                System.out.println("Illegal operator: " + node.id);
+
                 System.exit(1);
         }
         return 0;
@@ -50,11 +53,23 @@ TOKEN :
 {
     < INTEGER : (["0" - "9"])+ >
     | < LF : "\n" >
+    | <SYMBOL : ["A"-"Z", "a"-"z"] (["0"-"9","A"-"Z","a"-"z"])*>
+    | <EQUAL : "=">
+    | <PVIRG : ";">
 }
 
 SimpleNode Expression(): {}
 {
-    Expr1() <LF> {return jjtThis;} // Java code inside brackets
+    (Decl())*
+    Expr1() <PVIRG> <LF> {return jjtThis;} // Java code inside brackets
+
+}
+void Decl() #void: {Token t1, t2;}{
+    t1=<SYMBOL>
+    <EQUAL>
+    t2=<INTEGER> {SymbolsTable.put(t1.image, Integer.parseInt(t2.image));}
+    <PVIRG>
+    <LF>
 }
 
 void Expr1() #void: {}
@@ -76,11 +91,15 @@ void Expr2(int sign) #void: {} // 1: positive; -1: negative
 
 void Expr3(int sign) #void: {Token t;}
 {
-    t=<INTEGER>
-    {
-        jjtThis.val = sign * Integer.parseInt(t.image);
-    } #Term
+    (
+        t=<INTEGER>
+        {
+            jjtThis.val = sign * Integer.parseInt(t.image);
+        }
+        | t=<SYMBOL>{ jjtThis.val = sign * SymbolsTable.get(t.image);}
+    ) #Term 
     | "-" Expr3(-1)
     | "(" Expr1() ")"
+
 }
 
